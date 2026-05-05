@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>数据分析智能体</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Background orbs + noise -->
+    <div class="bg-orbs" aria-hidden="true">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+        <div class="orb orb-4"></div>
+    </div>
+    <div class="bg-noise" aria-hidden="true"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-icon">&#9670;</div>
+            <h1>数据分析智能体</h1>
+            <button class="theme-toggle" onclick="toggleTheme()" aria-label="切换主题">
+                <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="5"/>
+                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                </svg>
+                <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                </svg>
+            </button>
+        </div>
+
+        <button class="new-chat-btn" onclick="startNewChat()">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            新建对话
+        </button>
+
+        <div class="sidebar-content" id="sessionsList"></div>
+
+        <div class="sidebar-footer">
+            <button class="delete-btn" onclick="deleteCurrentSession()">删除当前会话</button>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+        <div class="chat-header">
+            <select id="fileSelect">
+                <option value="">选择数据文件</option>
+            </select>
+            <span class="file-name" id="currentFileName"></span>
+            <label class="upload-btn">
+                上传 CSV
+                <input type="file" accept=".csv" onchange="uploadFile(this)">
+            </label>
+        </div>
+
+        <div class="messages" id="messagesArea">
+            <div class="empty-state" id="emptyState">
+                <div class="empty-icon">&#9670;</div>
+                <p>选择一个数据文件，输入分析指令开始探索</p>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <div class="progress-bar" id="progressBar">
+                <div class="spinner"></div>
+                <span id="progressText">工作流：[节点名称] 运行中...</span>
+            </div>
+
+            <div class="input-wrapper">
+                <textarea id="messageInput" rows="1" placeholder="输入分析指令…" onkeydown="handleKeyDown(event)"></textarea>
+                <button class="send-btn" id="sendBtn" onclick="sendMessage()">发送</button>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/chat.js"></script>
+</body>
+</html>
