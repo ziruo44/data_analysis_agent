@@ -274,7 +274,7 @@ function displayMessages(result) {
     }
 }
 
-async function fetchAndDisplayFullReport(threadId, chatHistory) {
+async function fetchAndDisplayFullReport(threadId, chatHistory, skipUserMessages) {
     try {
         const res = await fetch(`${API_BASE}/api/workflow/${threadId}/report`);
         if (!res.ok) return;
@@ -282,15 +282,17 @@ async function fetchAndDisplayFullReport(threadId, chatHistory) {
 
         const turns = data.turns || [];
         if (turns.length === 0 && chatHistory.length > 0) {
-            chatHistory.forEach(function(turn) {
-                if (turn.user_prompt) addMessage('user', turn.user_prompt);
-            });
+            if (!skipUserMessages) {
+                chatHistory.forEach(function(turn) {
+                    if (turn.user_prompt) addMessage('user', turn.user_prompt);
+                });
+            }
             fetchAndDisplayReport(threadId);
             return;
         }
 
         turns.forEach(function(turn) {
-            if (turn.user_prompt) addMessage('user', turn.user_prompt);
+            if (turn.user_prompt && !skipUserMessages) addMessage('user', turn.user_prompt);
             if (turn.body_html) {
                 addReportMessage(`<div class="turn-block"><div class="turn-label">第 ${turn.turn_number} 轮</div>${turn.body_html}</div>`);
             }
@@ -346,8 +348,7 @@ async function fetchAndDisplayReport(threadId) {
 
 function appendWorkflowResult(result) {
     removeProcessMessage();
-    addMessage('assistant', '正在生成最终报告...');
-    fetchAndDisplayFullReport(currentThreadId, []);
+    fetchAndDisplayFullReport(currentThreadId, [], true);
 }
 
 function removeEmptyState() {
