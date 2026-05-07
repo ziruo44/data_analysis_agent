@@ -17,26 +17,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A LangGraph-based intelligent data analysis agent that automates data cleaning, code generation, and visualization. The agent uses a state machine with 7 nodes and supports self-healing retry loops with LLM caching.
 
+**Architecture: Frontend-Backend Separation**
+- `frontend/` — Vue 3 SPA (Vite build tool), communicates with backend via REST API
+- `backend/` — FastAPI + LangGraph Python backend (API server on port 8000)
+
 ## Commands
 
 ```bash
-# Install dependencies
+# ==================== 后端 ====================
+# 进入后端目录
+cd backend
+
+# 安装后端依赖
 uv install
 
-# Run the agent (interactive CLI)
+# 运行交互式 CLI
 uv run python main.py
 
-# Run the agent (interactive CLI - alias)
-uv run python -m agent.cli
-
-# Run the API server
+# 运行 API 服务器（端口 8000）
 uv run python api/main.py
 
-# Run node tests
-uv run python -m pytest test/ -v
+# ==================== 前端 ====================
+# 进入前端目录
+cd frontend
 
-# Run a single test file
-uv run python test/node1_test.py
+# 安装前端依赖
+npm install
+
+# 开发模式（Vite dev server，端口 5173，代理 /api 和 /output 到 localhost:8000）
+npm run dev
+
+# 生产构建
+npm run build
 ```
 
 ## Architecture
@@ -107,7 +119,8 @@ data_clean → code_generator → sanity_checker → code_executor → self_revi
 
 - FastAPI app in `api/main.py` with routes for files, threads, and workflow execution
 - Routes: `file_routes.py`, `thread_routes.py`, `workflow_routes.py`
-- Static file serving for `output/` and `static/`
+- Static file serving for `output/` only (generated charts and reports)
+- CORS enabled for all origins (supports frontend on a different port)
 
 ### Prompt Templates (`prompts/`)
 
@@ -128,7 +141,7 @@ User input (file_path + user_prompt)
   → report_output (Markdown report)
 ```
 
-Output charts: `output/*.png`
-Logs: `logs/*.log`
-Checkpoints: `checkpoints.db`
-LLM cache: `llm_cache/`
+Output charts: `backend/output/*.png`
+Logs: `backend/logs/*.log`
+Checkpoints: `backend/checkpoints.db`
+LLM cache: `backend/llm_cache/`
