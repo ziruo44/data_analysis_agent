@@ -34,17 +34,26 @@
 ### 整体架构图
 
 ```
-┌─────────────┐    ┌───────────┐    ┌──────────────┐
-│  前端页面    │◄──►│ FastAPI   │◄──►│  LangGraph   │
-│ (HTML+JS)   │    │ REST API  │    │  状态机      │
-└─────────────┘    └───────────┘    └──────┬───────┘
-                                           │
-                    ┌──────────────────────┼──────────────────────┐
-                    ▼                      ▼                      ▼
-             ┌───────────┐         ┌──────────────┐      ┌──────────────┐
-             │ SQLite    │         │ LLM (通义千问)│      │ 沙盒执行环境 │
-             │ 检查点DB  │         │ + 多模态视觉 │      │ exec + 捕获  │
-             └───────────┘         └──────────────┘      └──────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                    前端 (Vue 3 + Vite)                   │
+│            http://localhost:5173 (dev server)            │
+└─────────────────────┬───────────────────────────────────┘
+                      │ HTTP (REST API)
+                      │ /api/* , /output/*
+                      ▼
+┌─────────────────────────────────────────────────────────┐
+│              后端 (FastAPI + LangGraph)                  │
+│                 http://localhost:8000                    │
+│  ┌────────────┐  ┌────────────┐  ┌────────────────┐   │
+│  │  REST API   │  │ LangGraph  │  │  LLM (通义千问)  │   │
+│  │  /api/*    │  │  状态机    │  │  + 多模态视觉   │   │
+│  └────────────┘  └─────┬──────┘  └────────────────┘   │
+│                        │                                │
+│  ┌─────────────────────┼─────────────────────────────┐  │
+│  │ SQLite 检查点       │ 沙盒执行环境 (exec)           │  │
+│  │ checkpoints.db      │ 图表自动收集 (.png)            │  │
+│  └─────────────────────┴─────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ### 工作流节点流程
@@ -68,13 +77,13 @@ START → (检查 cleaned_file_path)
 
 | 层级 | 目录 | 职责 |
 |------|------|------|
-| **接口层** | `api/`、`main.py` | FastAPI + REST API + 静态文件服务 |
-| **前端层** | `static/` | Web 聊天界面 (HTML + JS) |
-| **工作流层** | `agent/graph.py`、`agent/nodes.py` | LangGraph 状态机定义与节点实现 |
-| **LLM 层** | `agent/llm.py` | 大模型客户端封装（文本 + 多模态视觉） |
-| **工具层** | `tools/` | 数据清洗、代码执行、状态检查等核心工具 |
-| **持久化层** | `memory/` | SQLite 检查点持久化与会话管理 |
-| **基础设施** | `utils/` | 日志、路径解析、字体配置、提示词加载等 |
+| **前端层** | `frontend/` | Vue 3 单页应用（Vite 构建工具） |
+| **接口层** | `backend/api/` | FastAPI REST API + CORS |
+| **工作流层** | `backend/agent/` | LangGraph 状态机定义与节点实现 |
+| **LLM 层** | `backend/agent/llm.py` | 大模型客户端封装（文本 + 多模态视觉） |
+| **工具层** | `backend/tools/` | 数据清洗、代码执行、状态检查等核心工具 |
+| **持久化层** | `backend/memory/` | SQLite 检查点持久化与会话管理 |
+| **基础设施** | `backend/utils/` | 日志、路径解析、字体配置、提示词加载等 |
 
 ---
 
@@ -279,73 +288,73 @@ class AgentState(TypedDict):
 ```
 data_analysis_agent/
 │
-├── main.py                          # CLI 交互式入口（终端菜单导航）
-├── pyproject.toml                   # 项目配置与依赖管理
-├── README.md                        # 本文档
+├── frontend/                         # Vue 3 前端（独立项目）
+│   ├── package.json                  # npm 依赖
+│   ├── vite.config.js                # Vite 配置（含 API 代理）
+│   ├── index.html                    # 入口 HTML
+│   ├── src/
+│   │   ├── main.js                   # Vue 入口
+│   │   ├── App.vue                   # 根组件
+│   │   ├── api/index.js              # API 封装层
+│   │   ├── components/               # UI 组件（Sidebar, FileSelector, ChatArea）
+│   │   └── styles/main.css           # 完整样式（含双主题）
+│   └── dist/                         # 生产构建产物
 │
-├── agent/                           # LangGraph 核心逻辑
-│   ├── graph.py                     # 状态机构建（7 节点 + 3 条件边 + 编译）
-│   ├── graph_run.py                 # 工作流执行入口 + 继续对话
-│   ├── nodes.py                     # 7 个节点完整实现
-│   ├── states.py                    # AgentState 类型定义 + 路由常量
-│   ├── llm.py                       # 通义千问 LLM + 多模态 MLLM 客户端
-│   ├── app_cache.py                 # 编译图单例缓存（避免重复编译）
-│   └── cli.py                       # 旧版 CLI 入口（兼容引用）
+├── backend/                          # Python 后端（独立项目）
+│   ├── main.py                      # CLI 交互式入口
+│   ├── pyproject.toml               # 项目配置与依赖管理
+│   ├── api/                         # FastAPI 后端
+│   │   ├── main.py                  # FastAPI 应用 + CORS + 路由注册
+│   │   ├── models.py                # Pydantic 请求/响应模型
+│   │   ├── state.py                 # 共享状态（线程输出映射）
+│   │   └── routes/
+│   │       ├── file_routes.py       # 文件管理（列表 / 上传）
+│   │       ├── thread_routes.py     # 会话管理（列表 / 详情 / 状态 / 删除）
+│   │       └── workflow_routes.py    # 工作流（启动 / 状态 / 继续 / 报告）
+│   │
+│   ├── agent/                       # LangGraph 核心逻辑
+│   │   ├── graph.py                 # 状态机构建（7 节点 + 条件边 + 编译）
+│   │   ├── graph_run.py             # 工作流执行入口 + 继续对话
+│   │   ├── nodes.py                 # 7 个节点完整实现
+│   │   ├── states.py                # AgentState 类型定义
+│   │   ├── llm.py                   # 通义千问 LLM + 多模态 MLLM 客户端
+│   │   └── app_cache.py             # 编译图单例缓存
+│   │
+│   ├── tools/                       # 核心工具库
+│   │   ├── code_executor.py         # 沙盒代码执行（exec + stdout 捕获 + 图表收集）
+│   │   ├── data_clean.py            # DataCleaner 全自动数据清洗类
+│   │   └── check_node_state.py      # SQLite 检查点交互式查看工具
+│   │
+│   ├── utils/                       # 基础设施工具
+│   │   ├── logger.py                # 双输出日志（控制台 INFO + 文件 DEBUG）
+│   │   ├── path_tool.py             # 路径解析 + 时间戳输出目录创建
+│   │   ├── prompt_loader.py         # 提示词加载
+│   │   ├── image_base64.py          # 图片 Base64 编码（支持批量 + 并发）
+│   │   ├── setup_font.py            # Matplotlib 中文字体配置
+│   │   ├── download_font.py         # OTF 中文字体自动下载脚本
+│   │   ├── info_loader.py           # 报告加载器（Markdown → HTML 转换）
+│   │   └── thread_check.py         # 线程管理
+│   │
+│   ├── memory/                       # 持久化层
+│   │   ├── checkpointer.py         # SQLite 检查点（SqliteSaver）
+│   │   └── session.py              # 会话配置构建器
+│   │
+│   ├── prompts/                     # LLM 提示词模板
+│   │   ├── data_analysis_prompt.txt
+│   │   ├── code_healing_prompt.txt
+│   │   └── image_analysis_prompt.txt
+│   │
+│   ├── config/                     # 配置文件
+│   │   └── mock_session.py         # 开发测试用 Mock 会话配置
+│   │
+│   ├── storage/                    # 数据文件存储（CSV）
+│   ├── output/                    # 工作流输出目录（图表、报告）
+│   ├── db/                        # 数据库（checkpoints.db）
+│   ├── logs/                      # 日志文件
+│   └── llm_cache/                  # LLM 响应缓存
 │
-├── api/                             # FastAPI 后端
-│   ├── main.py                      # FastAPI 应用初始化 + CORS + 路由注册
-│   ├── models.py                    # Pydantic 请求/响应模型
-│   ├── state.py                     # 共享状态（线程输出映射 + writer 抑制）
-│   └── routes/
-│       ├── file_routes.py           # 文件管理（列表 / 上传）
-│       ├── thread_routes.py         # 会话管理（列表 / 详情 / 状态 / 删除）
-│       └── workflow_routes.py       # 工作流（启动 / 状态查询 / 继续 / 报告）
-│
-├── static/                          # 前端静态文件
-│   ├── index.html                   # 聊天界面（深色主题，类似 ChatGPT 风格）
-│   └── js/
-│       └── chat.js                  # 前端逻辑（会话列表 / 文件选择 / 轮询状态）
-│
-├── tools/                           # 核心工具库
-│   ├── code_executor.py             # 沙盒代码执行（exec + stdout 捕获 + 图表收集）
-│   ├── data_clean.py                # DataCleaner 全自动数据清洗类
-│   └── check_node_state.py          # SQLite 检查点交互式查看工具
-│
-├── utils/                           # 基础设施工具
-│   ├── logger.py                    # 双输出日志（控制台 INFO + 文件 DEBUG）
-│   ├── path_tool.py                 # 路径解析 + 时间戳输出目录创建
-│   ├── prompt_loader.py             # 提示词懒加载（缺失时自动降级）
-│   ├── image_base64.py              # 图片 Base64 编码（支持批量 + 并发）
-│   ├── setup_font.py                # Matplotlib 中文字体配置
-│   ├── download_font.py             # OTF 中文字体自动下载脚本
-│   ├── info_loader.py               # 报告加载器（Markdown → HTML 转换）
-│   └── thread_check.py              # 线程管理（列表 / 历史浏览 / 删除）
-│
-├── memory/                          # 持久化层
-│   ├── checkpointer.py              # SQLite 检查点（SqliteSaver）
-│   └── session.py                   # 会话配置构建器
-│
-├── prompts/                         # LLM 提示词模板
-│   ├── data_analysis_prompt.txt     # 数据分析代码生成提示词
-│   ├── code_healing_prompt.txt      # 代码自愈修复提示词
-│   └── image_analysis_prompt.txt    # 多模态图表解读提示词
-│
-├── config/                          # 配置文件
-│   └── mock_session.py              # 开发测试用 Mock 会话配置
-│
-├── storage/                         # 数据文件存储
-│   ├── earthquake_data_tsunami.csv
-│   ├── 31f876ba_sleeptime_prediction_dataset.csv
-│   └── test_sales_data.csv
-│
-├── output/                          # 输出目录（按数据名+时间戳自动隔离）
-│   └── workflow_YYYYMMDD_HHMMSS/    # 单次运行输出（代码、图表、报告）
-│
-├── db/                              # 数据库
-│   └── checkpoints.db               # SQLite 检查点数据库
-│
-└── logs/                            # 日志文件
-    └── agent_YYYYMMDD.log           # 按日滚动的日志文件
+├── README.md
+└── CLAUDE.md
 ```
 
 ---
@@ -365,15 +374,16 @@ data_analysis_agent/
 
 ### 2. Web 前端界面
 
-`static/index.html` + `static/js/chat.js` 提供类 ChatGPT 的聊天界面：
+`frontend/` 为独立 Vue 3 项目，通过 Vite 构建：
 
-- **深色主题**：侧边栏 + 主聊天区布局，风格类似 ChatGPT
-- **文件选择**：从存储目录中选择 CSV 数据文件
-- **会话管理**：侧边栏列出历史会话，支持切换和继续对话
-- **消息展示**：用户消息 + 智能体回复的对话式展示
+- **深色主题**：侧边栏 + 主聊天区布局，类 ChatGPT 风格
+- **双主题切换**：亮色/暗色主题，localStorage 记忆偏好
+- **文件选择**：从 storage 目录中选择 CSV 数据文件，支持上传
+- **会话管理**：侧边栏列出历史会话，支持切换、继续、删除
+- **消息展示**：用户消息 + 智能体回复的对话式展示，含 AI 节点进度动画
 - **报告渲染**：HTML 格式报告展示，包含文字和图表的完整分析结果
-- **状态轮询**：后台异步轮询工作流执行状态
-- **图片展示**：图表图片直接嵌入聊天界面
+- **状态轮询**：后台每 2 秒轮询工作流执行状态，节点进度实时更新
+- **图表展示**：生成的 `.png` 图表直接嵌入聊天界面，可点击放大
 
 ### 3. 数据自动清洗
 
@@ -593,8 +603,8 @@ POST /api/workflow/{thread_id}/continue
 
 ### 前置条件
 
-- Python >= 3.12（推荐 3.13）
-- uv 包管理器
+- Python >= 3.12（推荐 3.13）+ uv 包管理器
+- Node.js >= 18 + npm
 
 ### 环境配置
 
@@ -602,11 +612,9 @@ POST /api/workflow/{thread_id}/continue
 # 克隆项目
 cd data_analysis_agent
 
-# 安装依赖
-uv install
-
-# 配置环境变量（创建 .env 文件）
-# DASHSCOPE_API_KEY=your_dashscope_api_key_here
+# 配置后端环境变量（在 backend/.env 中写入密钥）
+# DASHSCOPE_API_KEY=your_key_here
+# DMX_API_KEY=your_key_here
 ```
 
 ### 运行方式
@@ -614,27 +622,33 @@ uv install
 #### 方式一：Web 服务（推荐）
 
 ```bash
-uv run python -m api.main
-# 服务启动于 http://localhost:8000
-# 打开浏览器即可使用数据分析聊天界面
+# 终端 1：启动后端（端口 8000）
+cd backend
+uv install
+uv run python api/main.py
+
+# 终端 2：启动前端（端口 5173，自动代理 /api 到后端）
+cd frontend
+npm install
+npm run dev
+
+# 打开 http://localhost:5173 使用
 ```
 
-#### 方式二：CLI 交互模式
+#### 方式二：后端 API 独立运行
 
 ```bash
-uv run python main.py
-# 进入终端交互菜单，选择文件和分析需求
+cd backend
+uv run python api/main.py
+# 访问 http://localhost:8000/docs 查看 API 文档
 ```
 
-#### 方式三：编程调用
+#### 方式三：CLI 交互模式
 
-```python
-from agent.graph_run import run_workflow
-
-result = run_workflow(
-    file_path="storage/earthquake_data_tsunami.csv",
-    user_prompt="请分析该数据并生成可视化图表"
-)
+```bash
+cd backend
+uv run python main.py
+# 进入终端交互菜单，选择文件和分析需求
 ```
 
 ### 可用数据文件
@@ -739,7 +753,7 @@ uv sync                # 同步依赖
 - [x] 条件边自愈循环（代码报错自动打回 LLM 修复，最多 3 次）
 - [x] 安全审查关键字拦截（os.remove / subprocess / shutil.rmtree / os.system）
 - [x] FastAPI Web 服务 + REST API
-- [x] Web 前端聊天界面（深色主题 + 会话管理 + 报告展示）
+- [x] Vue 3 前端界面（Vite 构建，代理访问后端 API，双主题 + 会话管理）
 - [x] 通义千问流式代码生成（token 级实时输出）
 - [x] 多模态 LLM 图表解读（Base64 + 并发分析）
 - [x] DataCleaner 全自动数据清洗
